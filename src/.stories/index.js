@@ -219,6 +219,7 @@ class ListWrapper extends Component {
       onSortStart(sortEvent, nativeEvent, this.refs.component);
     }
   };
+<<<<<<< HEAD
 
   onSortEnd = (sortEvent, nativeEvent) => {
     const {lockedItems: lockedItemIndices, onSortEnd} = this.props;
@@ -234,6 +235,31 @@ class ListWrapper extends Component {
       ),
       isSorting: false,
     });
+=======
+  onSortEnd = ({oldIndex, newIndex, overlapDetected}) => {
+    const {onSortEnd} = this.props;
+    const {oldIndex, newIndex} = sortEvent;
+    const {items} = this.state;
+    if (overlapDetected && oldIndex !== newIndex) {
+      const array = items.slice(0);
+      let newElement = array[newIndex];
+      const oldElement = array.splice(oldIndex, 1)[0];
+      if (oldIndex > newIndex) {
+        newElement.value += '_' + oldElement.value;
+      } else {
+        newElement.value = oldElement.value + '_' + newElement.value;
+      }
+      this.setState({
+        items: array,
+        isSorting: false
+      });
+    } else {
+      this.setState({
+        items: arrayMove(items, oldIndex, newIndex),
+        isSorting: false
+      });
+    }
+>>>>>>> upstream-682/overlap-detection
 
     document.body.style.cursor = '';
 
@@ -544,11 +570,16 @@ storiesOf('General | Layout / Horizontal list', module)
       </div>
     );
   })
+<<<<<<< HEAD
   .add('w/ locked items', () => {
+=======
+  .add('Vertical', () => {
+>>>>>>> upstream-682/overlap-detection
     return (
       <div className={style.root}>
         <ListWrapper
           component={SortableList}
+<<<<<<< HEAD
           axis={'x'}
           items={getItems(50, 300)}
           lockedItems={[2, 3, 7]}
@@ -571,6 +602,18 @@ storiesOf('General | Layout / Grid', module)
       y: 0,
     };
 
+=======
+          axis={'y'}
+          items={getItems(10, 100)}
+          helperClass={style.stylizedHelper}
+          className={classNames(style.list, style.stylizedList, style.verticalList)}
+          itemClass={classNames(style.stylizedItem, style.verticalItem)}
+        />
+      </div>
+    );
+  })
+  .add('Grid', () => {
+>>>>>>> upstream-682/overlap-detection
     return (
       <div className={style.root}>
         <ListWrapper
@@ -665,19 +708,26 @@ storiesOf('General | Layout / Grid', module)
     );
   });
 
-storiesOf('General | Configuration / Options', module)
-  .add('Drag handle', () => {
+storiesOf('Mergeable elements', module)
+  .add('Horizontal', () => {
     return (
       <div className={style.root}>
         <ListWrapper
           component={SortableList}
-          shouldUseDragHandle={true}
-          items={getItems(50, 59)}
+          axis={'x'}
+          items={getItems(50, 300)}
           helperClass={style.stylizedHelper}
+          className={classNames(style.list, style.stylizedList, style.horizontalList)}
+          itemClass={classNames(style.stylizedItem, style.horizontalItem)}
+          overlapHelperClass={ style.mergeStyle }
+          swapThreshold={ 0.75 }
+          overlapThreshold={ 0.9 }
+          detectOverlap={ true }
         />
       </div>
     );
   })
+<<<<<<< HEAD
   .add('Lock to container edges', () => {
     return (
       <div className={style.root}>
@@ -691,29 +741,59 @@ storiesOf('General | Configuration / Options', module)
     );
   })
   .add('Disabled items', () => {
+=======
+  .add('Vertical', () => {
+>>>>>>> upstream-682/overlap-detection
     return (
       <div className={style.root}>
         <ListWrapper
           component={SortableList}
-          items={getItems(10, 59)}
+          axis={'y'}
+          items={getItems(10, 100)}
           helperClass={style.stylizedHelper}
-          disabledItems={[2, 3, 7]}
+          className={classNames(style.list, style.stylizedList, style.verticalList)}
+          itemClass={classNames(style.stylizedItem, style.verticalItem)}
+          overlapHelperClass={ style.mergeStyle }
+          overlapThreshold={ 0.9 }
+          swapThreshold={ 0.75 }
+          detectOverlap={ true }
         />
       </div>
     );
   })
+<<<<<<< HEAD
   .add('w/ locked items', () => {
+=======
+  .add('Grid(100)', () => {
+>>>>>>> upstream-682/overlap-detection
     return (
       <div className={style.root}>
         <ListWrapper
           component={SortableList}
+<<<<<<< HEAD
           items={getItems(10, 59)}
           helperClass={style.stylizedHelper}
           lockedItems={[2, 3, 7]}
+=======
+          axis={'xy'}
+          items={getItems(10, 110)}
+          helperClass={style.stylizedHelper}
+          className={classNames(style.list, style.stylizedList, style.grid)}
+          itemClass={classNames(style.stylizedItem, style.gridItem)}
+          swapThreshold={ 0.95 }
+          overlapThreshold={ 0.85 }
+          detectOverlap={ true }
+          overlapHelperClass={ style.mergeStyle }
+>>>>>>> upstream-682/overlap-detection
         />
       </div>
     );
   })
+<<<<<<< HEAD
+=======
+
+storiesOf('Advanced', module)
+>>>>>>> upstream-682/overlap-detection
   .add('Press delay (200ms)', () => {
     return (
       <div className={style.root}>

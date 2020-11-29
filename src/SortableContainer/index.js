@@ -567,6 +567,7 @@ export default function sortableContainer(
             collection,
             newIndex: this.newIndex,
             oldIndex: this.index,
+            overlapDetected: this.overlapDetected,
             isKeySorting,
             nodes,
           },
@@ -646,10 +647,11 @@ export default function sortableContainer(
 
     animateNodes() {
       const {
-        transitionDuration,
         hideSortableGhost,
         onSortOver,
         disableAnimation,
+        transitionDuration, swapThreshold, overlapHelperClass, detectOverlap,
+        overlapThreshold,
       } = this.props;
       const {containerScrollDelta, windowScrollDelta} = this;
       const nodes = this.manager.getOrderedRefs();
@@ -662,6 +664,7 @@ export default function sortableContainer(
 
       const prevIndex = this.newIndex;
       this.newIndex = null;
+      this.overlapDetected = false;
 
       // Returns whether a node location is a valid location for another node
       // to be moved into
@@ -703,8 +706,8 @@ export default function sortableContainer(
         const width = node.offsetWidth;
         const height = node.offsetHeight;
         const offset = {
-          height: this.height > height ? height / 2 : this.height / 2,
-          width: this.width > width ? width / 2 : this.width / 2,
+          width: this.width > width ? width : this.width,
+          height: this.height > height ? height : this.height,
         };
 
         // For keyboard sorting, we want user input to dictate the position of the nodes
@@ -778,15 +781,13 @@ export default function sortableContainer(
         if (this.axis.x) {
           if (this.axis.y) {
             // Calculations for a grid setup
+            const x_overlap = Math.max(0, Math.min(edgeOffset.left + width, sortingOffset.left + this.width)
+             - Math.max(edgeOffset.left, sortingOffset.left));
+            const y_overlap = Math.max(0, Math.min(edgeOffset.top + height, sortingOffset.top + this.height)
+             - Math.max(edgeOffset.top , sortingOffset.top));
+            const overlapArea = x_overlap * y_overlap;
             if (
-              mustShiftForward ||
-              (index < this.index &&
-                ((sortingOffset.left + windowScrollDelta.left - offset.width <=
-                  edgeOffset.left &&
-                  sortingOffset.top + windowScrollDelta.top <=
-                    edgeOffset.top + offset.height) ||
-                  sortingOffset.top + windowScrollDelta.top + offset.height <=
-                    edgeOffset.top))
+              index < this.index
             ) {
               const nextEdgeOffset = getNextEdgeOffset(DIRECTION.FORWARD);
               translate.x = nextEdgeOffset.left - edgeOffset.left;
@@ -794,42 +795,134 @@ export default function sortableContainer(
 
               if (this.newIndex === null) {
                 this.newIndex = index;
+              // If the current node is to the left on the same row, or above the node that's being dragged
+              // then move it to the right
+              if ((sortingOffset.left <= edgeOffset.left + offset.width*(1-swapThreshold) &&
+                sortingOffset.top <= edgeOffset.top + offset.height*(1-swapThreshold)) ||
+                sortingOffset.top + offset.height*(swapThreshold) <= edgeOffset.top) {
+                // Swapping grid left < (1 - swapThreshold)
+                // if there is a major overlap, don't animate other nodes
+                if (this.overlapDetected) continue;
+                // If the current node is to the left on the same row, or above the node that's being dragged
+                // then move it to the right
+                translate.x = this.width + this.marginOffset.x;
+                if (
+                  edgeOffset.left + translate.x >
+                  this.containerBoundingRect.width - offset.width
+                ) {
+                  // If it moves passed the right bounds, then animate it to the first position of the next row.
+                  // We just use the offset of the next node to calculate where to move, because that node's original position
+                  // is exactly where we want to go
+                  translate.x = nextNode.edgeOffset.left - edgeOffset.left;
+                  translate.y = nextNode.edgeOffset.top - edgeOffset.top;
+                }
+                if (this.newIndex === null) {
+                  this.newIndex = index;
+                  this.overlapDetected = false;
+                }
+                node.classList.remove(overlapHelperClass);
+              } else {
+                if (detectOverlap && overlapArea > this.width * this.height*overlapThreshold) {
+                  // Overlapping grid left > overlapThreshold %...Merge components without swapping indexes
+                  this.newIndex = index;
+                  this.overlapDetected = true;
+                  node.classList.add(overlapHelperClass);
+                } else {
+                  // node['+index+'] assuming previous position
+                  node.classList.remove(overlapHelperClass);
+                }
               }
             } else if (
-              mustShiftBackward ||
-              (index > this.index &&
-                ((sortingOffset.left + windowScrollDelta.left + offset.width >=
-                  edgeOffset.left &&
-                  sortingOffset.top + windowScrollDelta.top + offset.height >=
-                    edgeOffset.top) ||
-                  sortingOffset.top + windowScrollDelta.top + offset.height >=
-                    edgeOffset.top + height))
+              index > this.index
             ) {
               const nextEdgeOffset = getNextEdgeOffset(DIRECTION.BACKWARD);
               translate.x = nextEdgeOffset.left - edgeOffset.left;
               translate.y = nextEdgeOffset.top - edgeOffset.top;
               this.newIndex = index;
+              // If the current node is to the right on the same row, or below the node that's being dragged
+              // then move it to the left
+              if ((sortingOffset.left + offset.width*(1-swapThreshold) >= edgeOffset.left &&
+                sortingOffset.top + offset.height*(1-swapThreshold) >= edgeOffset.top) ||
+                sortingOffset.top >= edgeOffset.top + height*swapThreshold) {
+                // Overlapping grid right < (1 - swapThreshold)
+                // if there is a major overlap, don't animate other nodes
+                if (this.overlapDetected) continue;
+                translate.x = -(this.width + this.marginOffset.x);
+                if (
+                  edgeOffset.left + translate.x <
+                  this.containerBoundingRect.left + offset.width
+                ) {
+                  // If it moves passed the left bounds, then animate it to the last position of the previous row.
+                  // We just use the offset of the previous node to calculate where to move, because that node's original position
+                  // is exactly where we want to go
+                  translate.x = prevNode.edgeOffset.left - edgeOffset.left;
+                  translate.y = prevNode.edgeOffset.top - edgeOffset.top;
+                }
+                this.newIndex = index;
+                this.overlapDetected = false;
+                node.classList.remove(overlapHelperClass);
+              } else {
+                if (detectOverlap && overlapArea > this.width * this.height*overlapThreshold) {
+                  // Overlapping grid right > overlapThreshold%...Merge components without swapping indexes
+                  this.newIndex = index;
+                  this.overlapDetected = true;
+                  node.classList.add(overlapHelperClass);
+                } else {
+                  // node['+index+'] assuming previous position
+                  node.classList.remove(overlapHelperClass);
+                }
+              }
             }
           } else {
             if (
-              mustShiftBackward ||
-              (index > this.index &&
-                sortingOffset.left + windowScrollDelta.left + offset.width >=
-                  edgeOffset.left)
+              index > this.index
             ) {
               const nextEdgeOffset = getNextEdgeOffset(DIRECTION.BACKWARD);
               translate.x = nextEdgeOffset.left - edgeOffset.left;
               this.newIndex = index;
+              if (sortingOffset.left + offset.width*(1 - swapThreshold) >= edgeOffset.left) {
+                // Swapping rightwards > swapThreshold
+                translate.x = -(this.width + this.marginOffset.x);
+                this.newIndex = index;
+                this.overlapDetected = false;
+                node.classList.remove(overlapHelperClass);
+              } else if (
+                detectOverlap &&
+                sortingOffset.left + offset.width*(swapThreshold) >= edgeOffset.left &&
+                sortingOffset.left + offset.width*(1 - swapThreshold) < edgeOffset.left) {
+                // Overlapping rightwards (1.0-swapThreshold) - swapThreshold...Merge components without swapping indexes
+                this.newIndex = index;
+                this.overlapDetected = true;
+                node.classList.add(overlapHelperClass);
+              } else {
+                // node['+index+'] assuming previous position
+                node.classList.remove(overlapHelperClass);
+              }
             } else if (
-              mustShiftForward ||
-              (index < this.index &&
-                sortingOffset.left + windowScrollDelta.left <=
-                  edgeOffset.left + offset.width)
+              index < this.index
             ) {
               const nextEdgeOffset = getNextEdgeOffset(DIRECTION.FORWARD);
               translate.x = nextEdgeOffset.left - edgeOffset.left;
               if (this.newIndex == null) {
+              if (sortingOffset.left <= edgeOffset.left + offset.width*(1 - swapThreshold)) {
+                // Swapping leftwards > swapThreshold
+                translate.x = this.width + this.marginOffset.x;
+                if (this.newIndex == null) {
+                  this.newIndex = index;
+                  this.overlapDetected = false;
+                  node.classList.remove(overlapHelperClass);
+                }
+              } else if(
+                detectOverlap &&
+                sortingOffset.left >= edgeOffset.left + offset.width*(1 - swapThreshold) &&
+                sortingOffset.left <= edgeOffset.left + offset.width*(swapThreshold)) {
+                // Overlapping leftwards (1.0-swapThreshold) - (swapThreshold)...Merge components without swapping indexes
                 this.newIndex = index;
+                this.overlapDetected = true;
+                node.classList.add(overlapHelperClass);
+              } else {
+                // node['+index+'] assuming previous position
+                node.classList.remove(overlapHelperClass);
               }
             }
           }
@@ -854,7 +947,46 @@ export default function sortableContainer(
 
             translate.y = nextEdgeOffset.top - edgeOffset.top;
             if (this.newIndex == null) {
+            index > this.index
+          ) {
+            if (sortingOffset.top + offset.height*(1 - swapThreshold) >= edgeOffset.top) {
+              // Swapping downwards > swapThreshold
+              translate.y = -(this.height + this.marginOffset.y);
               this.newIndex = index;
+              this.overlapDetected = false;
+              node.classList.remove(overlapHelperClass);
+            } else if (
+              detectOverlap &&
+              sortingOffset.top + offset.height*(swapThreshold) >= edgeOffset.top &&
+              sortingOffset.top + offset.height*(1 - swapThreshold) < edgeOffset.top) {
+              // Overlapping downwards (1.0-swapThreshold) - swapThreshold...Merge components without swapping indexes..
+              this.newIndex = index;
+              this.overlapDetected = true;
+              node.classList.add(overlapHelperClass);
+            } else {
+              // node['+index+'] assuming previous position
+              node.classList.remove(overlapHelperClass);
+            }
+          } else if (index < this.index) {
+            if (sortingOffset.top <= edgeOffset.top + offset.height*(1 - swapThreshold)) {
+              // Swapping upwards > swapThreshold%
+              translate.y = this.height + this.marginOffset.y;
+              if (this.newIndex == null) {
+                this.newIndex = index;
+                this.overlapDetected = false;
+                node.classList.remove(overlapHelperClass);
+              }
+            } else if(
+              detectOverlap &&
+              sortingOffset.top >= edgeOffset.top + offset.height*(1 - swapThreshold) &&
+              sortingOffset.top <= edgeOffset.top + offset.height*(swapThreshold)) {
+              // Overlapping upwards (1.0-swapThreshold) - swapThreshold%...Merge components without swapping indexes..` + index
+              this.newIndex = index;
+              this.overlapDetected = true;
+              node.classList.add(overlapHelperClass);
+            } else {
+              // node['+index+'] assuming previous position
+              node.classList.remove(overlapHelperClass);
             }
           }
         }

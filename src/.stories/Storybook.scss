@@ -114,6 +114,18 @@ $focusedOutlineColor: #4c9ffe;
   border-bottom: 0;
 }
 
+.verticalList {
+    display: flex;
+    flex-direction: column;
+    height: 600px;
+    width: 300px;
+}
+
+.verticalItem {
+    height: 100px;
+    flex-shrink: 0;
+}
+
 // Grid
 .grid {
   display: grid;
@@ -235,6 +247,11 @@ $focusedOutlineColor: #4c9ffe;
 
 .shrinkedHelper {
   height: 20px !important;
+}
+
+.mergeStyle {
+    border: 1px solid black;
+    background: red;
 }
 
 :global {
