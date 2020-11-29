@@ -37,6 +37,11 @@ import {
   defaultKeyCodes,
 } from './props';
 
+const DIRECTION = {
+  FORWARD: 'forward',
+  BACKWARD: 'backward',
+};
+
 export default function sortableContainer(
   WrappedComponent,
   config = {withRef: false},
@@ -149,9 +154,9 @@ export default function sortableContainer(
         !this.state.sorting
       ) {
         const {useDragHandle} = this.props;
-        const {index, collection, disabled} = node.sortableInfo;
+        const {index, collection, disabled, locked} = node.sortableInfo;
 
-        if (disabled) {
+        if (disabled || locked) {
           return;
         }
 
@@ -658,9 +663,43 @@ export default function sortableContainer(
       const prevIndex = this.newIndex;
       this.newIndex = null;
 
+      // Returns whether a node location is a valid location for another node
+      // to be moved into
+      const isAllowedToMoveToNode = ({node}) => !node.sortableInfo.locked;
+
+      // Given an item index and a direction within the list in which it should be
+      // moved, find the next valid index at which it can be positioned.
+      const findNextSortIndex = (
+        index,
+        direction,
+        predicate = isAllowedToMoveToNode,
+      ) => {
+        let i = index + 1;
+        let loop = () => i < nodes.length;
+        let increment = () => (i += 1);
+
+        if (direction === DIRECTION.BACKWARD) {
+          i = index - 1;
+          loop = () => i >= 0;
+          increment = () => (i -= 1);
+        }
+
+        while (loop()) {
+          if (predicate(nodes[i])) {
+            return i;
+          }
+          increment();
+        }
+      };
+
       for (let i = 0, len = nodes.length; i < len; i++) {
         const {node} = nodes[i];
         const {index} = node.sortableInfo;
+
+        if (!isAllowedToMoveToNode(nodes[i])) {
+          continue;
+        }
+
         const width = node.offsetWidth;
         const height = node.offsetHeight;
         const offset = {
@@ -695,7 +734,6 @@ export default function sortableContainer(
 
         // Get a reference to the next and previous node
         const nextNode = i < nodes.length - 1 && nodes[i + 1];
-        const prevNode = i > 0 && nodes[i - 1];
 
         // Also cache the next node's edge offset if needed.
         // We need this for calculating the animation in a grid setup
@@ -731,6 +769,12 @@ export default function sortableContainer(
           setTransitionDuration(node, transitionDuration);
         }
 
+        const getNextEdgeOffset = (direction) => {
+          const nextSortIndex = findNextSortIndex(i, direction);
+          const nextSortIndexOwner = nodes[nextSortIndex];
+          return getEdgeOffset(nextSortIndexOwner.node, this.container);
+        };
+
         if (this.axis.x) {
           if (this.axis.y) {
             // Calculations for a grid setup
@@ -744,21 +788,10 @@ export default function sortableContainer(
                   sortingOffset.top + windowScrollDelta.top + offset.height <=
                     edgeOffset.top))
             ) {
-              // If the current node is to the left on the same row, or above the node that's being dragged
-              // then move it to the right
-              translate.x = this.width + this.marginOffset.x;
-              if (
-                edgeOffset.left + translate.x >
-                this.containerBoundingRect.width - offset.width
-              ) {
-                // If it moves passed the right bounds, then animate it to the first position of the next row.
-                // We just use the offset of the next node to calculate where to move, because that node's original position
-                // is exactly where we want to go
-                if (nextNode) {
-                  translate.x = nextNode.edgeOffset.left - edgeOffset.left;
-                  translate.y = nextNode.edgeOffset.top - edgeOffset.top;
-                }
-              }
+              const nextEdgeOffset = getNextEdgeOffset(DIRECTION.FORWARD);
+              translate.x = nextEdgeOffset.left - edgeOffset.left;
+              translate.y = nextEdgeOffset.top - edgeOffset.top;
+
               if (this.newIndex === null) {
                 this.newIndex = index;
               }
@@ -772,21 +805,9 @@ export default function sortableContainer(
                   sortingOffset.top + windowScrollDelta.top + offset.height >=
                     edgeOffset.top + height))
             ) {
-              // If the current node is to the right on the same row, or below the node that's being dragged
-              // then move it to the left
-              translate.x = -(this.width + this.marginOffset.x);
-              if (
-                edgeOffset.left + translate.x <
-                this.containerBoundingRect.left + offset.width
-              ) {
-                // If it moves passed the left bounds, then animate it to the last position of the previous row.
-                // We just use the offset of the previous node to calculate where to move, because that node's original position
-                // is exactly where we want to go
-                if (prevNode) {
-                  translate.x = prevNode.edgeOffset.left - edgeOffset.left;
-                  translate.y = prevNode.edgeOffset.top - edgeOffset.top;
-                }
-              }
+              const nextEdgeOffset = getNextEdgeOffset(DIRECTION.BACKWARD);
+              translate.x = nextEdgeOffset.left - edgeOffset.left;
+              translate.y = nextEdgeOffset.top - edgeOffset.top;
               this.newIndex = index;
             }
           } else {
@@ -796,7 +817,8 @@ export default function sortableContainer(
                 sortingOffset.left + windowScrollDelta.left + offset.width >=
                   edgeOffset.left)
             ) {
-              translate.x = -(this.width + this.marginOffset.x);
+              const nextEdgeOffset = getNextEdgeOffset(DIRECTION.BACKWARD);
+              translate.x = nextEdgeOffset.left - edgeOffset.left;
               this.newIndex = index;
             } else if (
               mustShiftForward ||
@@ -804,8 +826,8 @@ export default function sortableContainer(
                 sortingOffset.left + windowScrollDelta.left <=
                   edgeOffset.left + offset.width)
             ) {
-              translate.x = this.width + this.marginOffset.x;
-
+              const nextEdgeOffset = getNextEdgeOffset(DIRECTION.FORWARD);
+              translate.x = nextEdgeOffset.left - edgeOffset.left;
               if (this.newIndex == null) {
                 this.newIndex = index;
               }
@@ -818,7 +840,9 @@ export default function sortableContainer(
               sortingOffset.top + windowScrollDelta.top + offset.height >=
                 edgeOffset.top)
           ) {
-            translate.y = -(this.height + this.marginOffset.y);
+            const nextEdgeOffset = getNextEdgeOffset(DIRECTION.BACKWARD);
+
+            translate.y = nextEdgeOffset.top - edgeOffset.top;
             this.newIndex = index;
           } else if (
             mustShiftForward ||
@@ -826,7 +850,9 @@ export default function sortableContainer(
               sortingOffset.top + windowScrollDelta.top <=
                 edgeOffset.top + offset.height)
           ) {
-            translate.y = this.height + this.marginOffset.y;
+            const nextEdgeOffset = getNextEdgeOffset(DIRECTION.FORWARD);
+
+            translate.y = nextEdgeOffset.top - edgeOffset.top;
             if (this.newIndex == null) {
               this.newIndex = index;
             }
