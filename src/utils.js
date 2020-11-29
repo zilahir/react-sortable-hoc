@@ -244,7 +244,7 @@ export function getLockPixelOffsets({height, width, lockOffset}) {
 }
 
 function isScrollable(el) {
-  const computedStyle = window.getComputedStyle(el);
+  const computedStyle = el.ownerDocument.defaultView.getComputedStyle(el);
   const overflowRegex = /(auto|scroll)/;
   const properties = ['overflow', 'overflowX', 'overflowY'];
 
@@ -254,7 +254,7 @@ function isScrollable(el) {
 }
 
 export function getScrollingParent(el) {
-  if (!(el instanceof HTMLElement)) {
+  if (!(el instanceof el.ownerDocument.defaultView.HTMLElement)) {
     return null;
   } else if (isScrollable(el)) {
     return el;
