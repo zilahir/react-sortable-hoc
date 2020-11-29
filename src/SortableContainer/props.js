@@ -50,7 +50,8 @@ export const propTypes = {
   useDragHandle: PropTypes.bool,
   useWindowAsScrollContainer: PropTypes.bool,
   scrollXStartDistance: PropTypes.number,
-  scrollYStartDistance: PropTypes.number
+  scrollYStartDistance: PropTypes.number,
+  useWindowAsAutoScrollerContainer: PropTypes.bool,
 };
 
 export const defaultKeyCodes = {

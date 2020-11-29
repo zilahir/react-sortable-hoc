@@ -71,7 +71,7 @@ export default function sortableContainer(
     }
 
     componentDidMount() {
-      const {useWindowAsScrollContainer, scrollXStartDistance, scrollYStartDistance} = this.props;
+      const {useWindowAsScrollContainer, scrollXStartDistance, scrollYStartDistance, useWindowAsAutoScrollerContainer} = this.props;
       const container = this.getContainer();
 
       Promise.resolve(container).then((containerNode) => {
@@ -93,8 +93,12 @@ export default function sortableContainer(
           ? this.document.scrollingElement || this.document.documentElement
           : getScrollingParent(this.container) || this.container;
 
+        this.autoScrollerContainer = useWindowAsAutoScrollerContainer
+          ? this.document.scrollingElement || this.document.documentElement
+          : this.scrollContainer;
+
         this.autoScroller = new AutoScroller(
-          this.scrollContainer,
+          this.autoScrollerContainer,
           this.onAutoScroll,
           scrollXStartDistance,
           scrollYStartDistance
@@ -242,9 +246,12 @@ export default function sortableContainer(
           updateBeforeSortStart,
           onSortStart,
           useWindowAsScrollContainer,
+          useWindowAsAutoScrollerContainer,
         } = this.props;
         const {node, collection} = active;
         const {isKeySorting} = this.manager;
+        const useWindowScroll =
+          useWindowAsScrollContainer || useWindowAsAutoScrollerContainer;
 
         if (typeof updateBeforeSortStart === 'function') {
           this._awaitingUpdateBeforeSortStart = true;
@@ -347,7 +354,7 @@ export default function sortableContainer(
             left: containerLeft,
             width: containerWidth,
             height: containerHeight,
-          } = useWindowAsScrollContainer
+          } = useWindowScroll
             ? {
                 top: 0,
                 left: 0,
@@ -372,11 +379,11 @@ export default function sortableContainer(
         } else {
           if (this.axis.x) {
             this.minTranslate.x =
-              (useWindowAsScrollContainer ? 0 : containerBoundingRect.left) -
+              (useWindowScroll ? 0 : containerBoundingRect.left) -
               this.boundingClientRect.left -
               this.width / 2;
             this.maxTranslate.x =
-              (useWindowAsScrollContainer
+              (useWindowScroll
                 ? this.contentWindow.innerWidth
                 : containerBoundingRect.left + containerBoundingRect.width) -
               this.boundingClientRect.left -
@@ -385,11 +392,11 @@ export default function sortableContainer(
 
           if (this.axis.y) {
             this.minTranslate.y =
-              (useWindowAsScrollContainer ? 0 : containerBoundingRect.top) -
+              (useWindowScroll ? 0 : containerBoundingRect.top) -
               this.boundingClientRect.top -
               this.height / 2;
             this.maxTranslate.y =
-              (useWindowAsScrollContainer
+              (useWindowScroll
                 ? this.contentWindow.innerHeight
                 : containerBoundingRect.top + containerBoundingRect.height) -
               this.boundingClientRect.top -
@@ -1081,9 +1088,12 @@ export default function sortableContainer(
     }
 
     get containerScrollDelta() {
-      const {useWindowAsScrollContainer} = this.props;
+      const {
+        useWindowAsScrollContainer,
+        useWindowAsAutoScrollerContainer,
+      } = this.props;
 
-      if (useWindowAsScrollContainer) {
+      if (useWindowAsScrollContainer || useWindowAsAutoScrollerContainer) {
         return {left: 0, top: 0};
       }
 
